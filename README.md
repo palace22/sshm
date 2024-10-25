@@ -2,9 +2,9 @@
 
 A modern command-line tool to manage your SSH connections with style. Easily manage your SSH config file with a beautiful interface.
 
-![PyPI version](https://img.shields.io/pypi/v/ssh-manager)
-![Python versions](https://img.shields.io/pypi/pyversions/ssh-manager)
-![License](https://img.shields.io/github/license/palace22/ssh-manager)
+![PyPI version](https://img.shields.io/pypi/v/sshm)
+![Python versions](https://img.shields.io/pypi/pyversions/sshm)
+![License](https://img.shields.io/pypi/l/sshm)
 
 ## Features
 
@@ -154,7 +154,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GPL-3.0 License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
