@@ -1,7 +1,7 @@
 # SSH Manager (sshm)
 
 A modern command-line tool to manage your SSH connections with style. Easily manage your SSH config file with a beautiful interface.
-
+![Local Image](assets/sshm_screenshot.png)
 ![PyPI version](https://img.shields.io/pypi/v/sshm)
 ![Python versions](https://img.shields.io/pypi/pyversions/sshm)
 ![License](https://img.shields.io/pypi/l/sshm)
