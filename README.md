@@ -21,7 +21,7 @@ A modern command-line tool to manage your SSH connections with style. Easily man
 ## Installation
 
 ```bash
-pip install ssh-manager
+pip install git+https://github.com/palace22/sshm.git
 ```
 
 ## Quick Start
