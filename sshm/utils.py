@@ -2,9 +2,9 @@
 
 import re
 import socket
+import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
-import subprocess
 
 
 def validate_ssh_key(key_path: Path) -> Tuple[bool, Optional[str]]:
@@ -185,8 +185,8 @@ def backup_file(file_path: Path, backup_dir: Path) -> Optional[Path]:
         return None
 
     try:
-        from datetime import datetime
         import shutil
+        from datetime import datetime
 
         backup_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -2,7 +2,8 @@
 
 import json
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from .models import AppConfig
 
 

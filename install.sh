@@ -50,12 +50,12 @@ check_python_version() {
     local version=$(get_python_version)
     local major=$(echo $version | cut -d. -f1)
     local minor=$(echo $version | cut -d. -f2)
-    
+
     if [[ $major -lt 3 ]] || [[ $major -eq 3 && $minor -lt 10 ]]; then
         print_error "Python 3.10 or higher is required. Found: $version"
         return 1
     fi
-    
+
     print_info "Python version $version detected - compatible!"
     return 0
 }
@@ -63,7 +63,7 @@ check_python_version() {
 # Function to install via pip from GitHub
 install_from_github() {
     print_info "Installing sshm from GitHub repository..."
-    
+
     if command_exists pip3; then
         pip3 install --user git+https://github.com/palace22/sshm.git
     elif command_exists pip; then
@@ -77,14 +77,14 @@ install_from_github() {
 # Function to install for development
 install_dev() {
     print_info "Installing sshm for development..."
-    
+
     # Clone repository if not already present
     if [[ ! -d "sshm" ]]; then
         print_info "Cloning repository..."
         git clone https://github.com/palace22/sshm.git
         cd sshm
     fi
-    
+
     if command_exists poetry; then
         poetry install --with dev
         print_info "Development dependencies installed via Poetry"
@@ -104,7 +104,7 @@ install_dev() {
 # Function to setup PATH
 setup_path() {
     local shell_config=""
-    
+
     # Detect shell and config file
     if [[ $SHELL == *"zsh"* ]]; then
         shell_config="$HOME/.zshrc"
@@ -114,13 +114,13 @@ setup_path() {
         print_warning "Unable to detect shell. You may need to manually add ~/.local/bin to your PATH"
         return 0
     fi
-    
+
     # Check if PATH is already configured
     if grep -q 'export PATH="$PATH:$HOME/.local/bin"' "$shell_config" 2>/dev/null; then
         print_info "PATH already configured in $shell_config"
         return 0
     fi
-    
+
     print_info "Adding ~/.local/bin to PATH in $shell_config"
     echo 'export PATH="$PATH:$HOME/.local/bin"' >> "$shell_config"
     print_warning "Please restart your shell or run: source $shell_config"
@@ -129,7 +129,7 @@ setup_path() {
 # Function to verify installation
 verify_installation() {
     print_info "Verifying installation..."
-    
+
     if command_exists sshm; then
         print_success "sshm command is available!"
         sshm --help | head -3
@@ -137,7 +137,7 @@ verify_installation() {
     else
         print_warning "sshm command not found in PATH"
         print_info "Checking if installed in ~/.local/bin..."
-        
+
         if [[ -f "$HOME/.local/bin/sshm" ]]; then
             print_info "Found sshm in ~/.local/bin"
             print_info "Please add ~/.local/bin to your PATH or restart your shell"
@@ -153,12 +153,12 @@ verify_installation() {
 main() {
     print_info "SSH Manager (sshm) Installation Script"
     print_info "======================================"
-    
+
     # Check Python version
     if ! check_python_version; then
         exit 1
     fi
-    
+
     # Parse command line arguments
     case "${1:-auto}" in
         "github")
@@ -175,7 +175,7 @@ main() {
             ;;
         "auto"|*)
             print_info "Auto-detecting installation method..."
-            
+
             # Try PyPI first (when available), then GitHub
             if install_from_pypi 2>/dev/null; then
                 print_success "Installed from PyPI"
@@ -187,10 +187,10 @@ main() {
             fi
             ;;
     esac
-    
+
     # Setup PATH
     setup_path
-    
+
     # Verify installation
     if verify_installation; then
         print_success "Installation completed successfully!"

@@ -4,8 +4,9 @@ Setup script for SSH Manager.
 Alternative to Poetry for simpler installations.
 """
 
-from setuptools import setup, find_packages
 from pathlib import Path
+
+from setuptools import find_packages, setup
 
 # Read the README file
 readme_file = Path(__file__).parent / "README.md"

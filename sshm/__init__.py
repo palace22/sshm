@@ -3,7 +3,7 @@
 __version__ = "0.1.0"
 __author__ = "palace22"
 
-from .models import SSHConnection, AppConfig
 from .manager import SSHManager
+from .models import AppConfig, SSHConnection
 
 __all__ = ["SSHConnection", "AppConfig", "SSHManager"]

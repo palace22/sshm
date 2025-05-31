@@ -1,10 +1,12 @@
 """Tests for SSH Manager core functionality."""
 
-import pytest
 import tempfile
 from pathlib import Path
-from sshm.models import SSHConnection, AppConfig
+
+import pytest
+
 from sshm.manager import SSHManager
+from sshm.models import AppConfig, SSHConnection
 
 
 class TestSSHManager:

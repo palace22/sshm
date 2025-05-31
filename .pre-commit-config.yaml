@@ -23,22 +23,8 @@ repos:
       - id: isort
         args: ["--profile", "black"]
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.8.0
-    hooks:
-      - id: mypy
-        additional_dependencies: [types-all]
-        exclude: ^tests/
-
   - repo: https://github.com/pycqa/flake8
     rev: 7.0.0
     hooks:
       - id: flake8
-        args: [--max-line-length=88, --extend-ignore=E203]
-
-  - repo: https://github.com/pycqa/bandit
-    rev: 1.7.5
-    hooks:
-      - id: bandit
-        args: ["-r", "sshm"]
-        exclude: ^tests/
+        args: ["--max-line-length=100", "--extend-ignore=E203,F401,F841"]

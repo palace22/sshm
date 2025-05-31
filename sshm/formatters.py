@@ -1,11 +1,11 @@
+from typing import List
+
+from rich.columns import Columns
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
 from rich.syntax import Syntax
-from rich.text import Text
-from rich.columns import Columns
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from typing import List
+from rich.table import Table
+
 from .models import SSHConnection
 
 console = Console()
@@ -134,7 +134,8 @@ def format_search_suggestions(matches: List[tuple], search_term: str) -> Panel:
     for i, (connection, score) in enumerate(matches, 1):
         score_color = "green" if score >= 80 else "yellow" if score >= 60 else "red"
         content.append(
-            f"{i}. [cyan]{connection.name}[/cyan] [{score_color}]({score}%)[/{score_color}]"
+            f"{i}. [cyan]{connection.name}[/cyan] "
+            f"[{score_color}]({score}%)[/{score_color}]"
         )
         content.append(
             f"   [dim]{connection.user}@{connection.hostname}:{connection.port}[/dim]"

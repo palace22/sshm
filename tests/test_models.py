@@ -1,8 +1,10 @@
 """Tests for SSH Manager models."""
 
-import pytest
 from pathlib import Path
-from sshm.models import SSHConnection, AppConfig
+
+import pytest
+
+from sshm.models import AppConfig, SSHConnection
 
 
 class TestSSHConnection:
