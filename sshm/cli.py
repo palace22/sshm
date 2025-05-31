@@ -325,12 +325,13 @@ def connect(
                     )
 
                     # Display suggestions with numbers
+                    suggestions = (
+                        suggestions
+                        if len(high_score_matches) == 0
+                        else high_score_matches
+                    )
                     for i, (conn, score) in enumerate(
-                        (
-                            suggestions
-                            if len(high_score_matches) == 0
-                            else high_score_matches
-                        ),
+                        suggestions,
                         1,
                     ):
                         score_color = (

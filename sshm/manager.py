@@ -3,7 +3,7 @@ import shutil
 from datetime import datetime
 from typing import List, Optional, Tuple
 
-from rapidfuzz import process
+from rapidfuzz import fuzz, process
 
 from .models import AppConfig, SSHConnection
 
@@ -174,15 +174,73 @@ class SSHManager:
         # Get connection names for fuzzy matching
         connection_names = [conn.name for conn in connections]
 
-        # Find fuzzy matches
-        matches = process.extract(search_term, connection_names, limit=limit)
+        # Try different matching strategies
+        search_results = {}
+
+        # Strategy 1: Exact phrase matching (original approach)
+        phrase_matches = process.extract(search_term, connection_names, limit=limit * 3)
+        for match_name, score, index in phrase_matches:
+            if match_name not in search_results:
+                search_results[match_name] = score
+            else:
+                search_results[match_name] = max(search_results[match_name], score)
+
+        # Strategy 2: Multi-word matching - split search term and match individual words
+        search_words = search_term.lower().split()
+        if len(search_words) > 1:
+            for conn_name in connection_names:
+                word_scores = []
+                conn_name_lower = conn_name.lower()
+
+                for word in search_words:
+                    # Find best match for this word in the connection name
+                    # Split connection name by common separators to get individual parts
+                    conn_parts = re.split(r"[-_\s]+", conn_name_lower)
+                    best_word_score = 0
+
+                    # Check exact substring match first (high priority)
+                    if word in conn_name_lower:
+                        best_word_score = 95
+                    else:
+                        # Use fuzzy matching for each part
+                        for part in conn_parts:
+                            if part:  # Skip empty parts
+                                word_score = fuzz.ratio(word, part)
+                                best_word_score = max(best_word_score, word_score)
+
+                    word_scores.append(best_word_score)
+
+                # Calculate combined score for multi-word search
+                if word_scores:
+                    # Average of word scores, but boost if all words have good matches
+                    avg_score = sum(word_scores) / len(word_scores)
+                    min_score = min(word_scores)
+
+                    # Bonus if all words match well
+                    if min_score >= 70:
+                        combined_score = min(avg_score * 1.2, 100)
+                    else:
+                        combined_score = avg_score
+
+                    # Update best score for this connection
+                    if conn_name not in search_results:
+                        search_results[conn_name] = combined_score
+                    else:
+                        search_results[conn_name] = max(
+                            search_results[conn_name], combined_score
+                        )
+
+        # Sort by score and limit results
+        sorted_matches = sorted(
+            search_results.items(), key=lambda x: x[1], reverse=True
+        )[:limit]
 
         # Return connections with their scores
         result = []
-        for match_name, score, index in matches:
+        for match_name, score in sorted_matches:
             for conn in connections:
                 if conn.name == match_name:
-                    result.append((conn, score))
+                    result.append((conn, int(score)))
                     break
 
         return result
