@@ -5,47 +5,132 @@ from rich.prompt import Prompt, Confirm
 import subprocess
 import sys
 import json
+import os
+import shutil
+from datetime import datetime
 
-from .models import SSHConnection, AppConfig
+from .models import SSHConnection
 from .manager import SSHManager
+from .config import ConfigManager
 from .formatters import (
     console,
     format_connection_table,
     format_connection_detail,
-    format_config_preview
+    format_paginated_table,
+    format_compact_list,
+    format_search_suggestions,
 )
 
 app = typer.Typer(
     help="SSH Manager - A modern CLI tool to manage SSH connections",
-    no_args_is_help=True
+    no_args_is_help=True,
 )
 
+
+def connection_name_completion(incomplete: str):
+    """Provide completion suggestions for connection names with fuzzy matching."""
+    try:
+        manager = get_manager()
+        connections = manager.list_connections()
+
+        if not incomplete:
+            # If no input, return all connection names
+            return [conn.name for conn in connections]
+
+        # First try exact prefix matching (for better performance)
+        prefix_matches = [conn.name for conn in connections if conn.name.startswith(incomplete)]
+        if prefix_matches:
+            return prefix_matches
+
+        # If no prefix matches, use fuzzy matching and return ALL results
+        # This allows the shell to handle the filtering
+        matches = manager.find_best_matches(incomplete, limit=50)
+        # Filter by minimum score of 30 and return all matches
+        filtered_matches = [match[0].name for match in matches if match[1] >= 30]
+        
+        # Return all fuzzy matches - the shell will filter them
+        return filtered_matches
+        
+    except Exception:
+        # Fallback to empty list if there's any error
+        return []
+
+
 def get_manager() -> SSHManager:
-    """Get an instance of SSHManager with default config."""
-    config = AppConfig()
+    """Get an instance of SSHManager with loaded config."""
+    config_manager = ConfigManager()
+    config = config_manager.load_config()
     return SSHManager(config)
+
 
 @app.command()
 def list(
     search: Optional[str] = typer.Option(None, help="Filter connections by name"),
     detailed: bool = typer.Option(False, "--detailed", "-d", help="Show detailed view"),
-    format: str = typer.Option("table", help="Output format: table, json")
+    format: str = typer.Option("table", help="Output format: table, json, compact"),
+    page: int = typer.Option(1, "--page", "-p", help="Page number for pagination"),
+    per_page: int = typer.Option(10, "--per-page", help="Items per page"),
+    all_pages: bool = typer.Option(
+        False, "--all", "-a", help="Show all connections without pagination"
+    ),
 ):
     """List all SSH connections."""
-    manager = get_manager()
-    connections = manager.list_connections(search)
-    
-    if not connections:
-        console.print("[yellow]No SSH connections found.[/yellow]")
-        return
-    
-    if format.lower() == "json":
-        console.print_json(data=[conn.model_dump() for conn in connections])
-    elif detailed:
-        for conn in connections:
-            console.print(format_connection_detail(conn))
-    else:
-        console.print(format_connection_table(connections))
+    try:
+        manager = get_manager()
+        connections = manager.list_connections(search)
+
+        if not connections:
+            if search:
+                console.print(
+                    f"[yellow]No SSH connections found matching '{search}'.[/yellow]"
+                )
+            else:
+                console.print("[yellow]No SSH connections found.[/yellow]")
+            return
+
+        if format.lower() == "json":
+            console.print_json(data=[conn.model_dump() for conn in connections])
+            return
+
+        if format.lower() == "compact":
+            console.print(format_compact_list(connections))
+            console.print(f"\n[dim]Total: {len(connections)} connections[/dim]")
+            return
+
+        if detailed:
+            for conn in connections:
+                console.print(format_connection_detail(conn))
+                console.print()  # Add spacing between connections
+            return
+
+        # Paginated table view
+        if all_pages or len(connections) <= per_page:
+            console.print(format_connection_table(connections))
+            console.print(f"\n[dim]Total: {len(connections)} connections[/dim]")
+        else:
+            table, nav_info = format_paginated_table(connections, page, per_page)
+            console.print(table)
+
+            # Show pagination info
+            nav_text = (
+                f"[dim]Page {nav_info['current_page']} of {nav_info['total_pages']} | "
+                f"Showing {nav_info['showing_start']}-{nav_info['showing_end']} of {nav_info['total_items']} connections[/dim]"
+            )
+            console.print(f"\n{nav_text}")
+
+            # Show navigation hints
+            hints = []
+            if nav_info["has_prev"]:
+                hints.append(f"sshm list --page {page - 1}")
+            if nav_info["has_next"]:
+                hints.append(f"sshm list --page {page + 1}")
+            if hints:
+                console.print(f"[dim]Navigation: {' | '.join(hints)}[/dim]")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(1)
+
 
 @app.command()
 def add(
@@ -56,61 +141,83 @@ def add(
     identity_file: Optional[Path] = typer.Option(None, help="SSH identity file"),
 ):
     """Add a new SSH connection."""
-    manager = get_manager()
-    
-    # Interactive mode if no arguments provided
-    if not all([name, hostname, user]):
-        name = name or Prompt.ask("Connection name")
-        hostname = hostname or Prompt.ask("Hostname")
-        user = user or Prompt.ask("Username")
-        port = port or int(Prompt.ask("Port", default="22"))
-        identity_file = identity_file or Path(
-            Prompt.ask("Identity file", default="~/.ssh/id_rsa")
-        ).expanduser()
-
-    connection = SSHConnection(
-        name=name,
-        hostname=hostname,
-        user=user,
-        port=port or 22,
-        identity_file=identity_file
-    )
-
     try:
+        manager = get_manager()
+
+        # Interactive mode if no arguments provided
+        if not all([name, hostname, user]):
+            console.print("[cyan]Adding new SSH connection[/cyan]")
+            name = name or Prompt.ask("Connection name")
+            hostname = hostname or Prompt.ask("Hostname")
+            user = user or Prompt.ask("Username", default=os.getenv("USER", "root"))
+
+            port_str = Prompt.ask("Port", default="22")
+            try:
+                port = int(port_str)
+            except ValueError:
+                port = 22
+
+            if Confirm.ask("Add identity file?", default=False):
+                identity_file_str = Prompt.ask(
+                    "Identity file path", default="~/.ssh/id_rsa"
+                )
+                identity_file = Path(identity_file_str).expanduser()
+            else:
+                identity_file = None
+
+        connection = SSHConnection(
+            name=name,
+            hostname=hostname,
+            user=user,
+            port=port or 22,
+            identity_file=identity_file,
+        )
+
         manager.add_connection(connection)
         console.print(f"[green]Successfully added connection '{name}'[/green]")
         console.print(format_connection_detail(connection))
-    except ValueError as e:
+    except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)
 
+
 @app.command()
 def update(
-    name: str = typer.Argument(..., help="Connection name to update"),
+    name: str = typer.Argument(
+        ..., help="Connection name to update", autocompletion=connection_name_completion
+    ),
     hostname: Optional[str] = typer.Option(None, help="New hostname"),
     user: Optional[str] = typer.Option(None, help="New username"),
     port: Optional[int] = typer.Option(None, help="New port"),
     identity_file: Optional[Path] = typer.Option(None, help="New identity file"),
 ):
     """Update an existing SSH connection."""
-    manager = get_manager()
-    
     try:
+        manager = get_manager()
         connection = manager.get_connection(name)
-        
+
         # Interactive mode if no options provided
         if not any([hostname, user, port, identity_file]):
+            console.print("[cyan]Updating SSH connection[/cyan]")
             console.print(format_connection_detail(connection))
-            if Prompt.ask("Update hostname?", default="n") == "y":
+            console.print()
+
+            if Prompt.ask("Update hostname?", default="n").lower() == "y":
                 hostname = Prompt.ask("New hostname", default=connection.hostname)
-            if Prompt.ask("Update username?", default="n") == "y":
+            if Prompt.ask("Update username?", default="n").lower() == "y":
                 user = Prompt.ask("New username", default=connection.user)
-            if Prompt.ask("Update port?", default="n") == "y":
-                port = int(Prompt.ask("New port", default=str(connection.port)))
-            if Prompt.ask("Update identity file?", default="n") == "y":
-                identity_file = Path(
-                    Prompt.ask("New identity file", default=str(connection.identity_file or "~/.ssh/id_rsa"))
-                ).expanduser()
+            if Prompt.ask("Update port?", default="n").lower() == "y":
+                port_str = Prompt.ask("New port", default=str(connection.port))
+                try:
+                    port = int(port_str)
+                except ValueError:
+                    port = connection.port
+            if Prompt.ask("Update identity file?", default="n").lower() == "y":
+                identity_file_str = Prompt.ask(
+                    "New identity file",
+                    default=str(connection.identity_file or "~/.ssh/id_rsa"),
+                )
+                identity_file = Path(identity_file_str).expanduser()
 
         # Update connection with new values
         updated_connection = SSHConnection(
@@ -119,114 +226,382 @@ def update(
             user=user or connection.user,
             port=port or connection.port,
             identity_file=identity_file or connection.identity_file,
-            extra_options=connection.extra_options
+            extra_options=connection.extra_options,
         )
 
         manager.update_connection(name, updated_connection)
         console.print(f"[green]Successfully updated connection '{name}'[/green]")
         console.print(format_connection_detail(updated_connection))
-    except ValueError as e:
+    except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)
+
 
 @app.command()
 def remove(
-    name: str = typer.Argument(..., help="Connection name to remove"),
+    name: str = typer.Argument(
+        ..., help="Connection name to remove", autocompletion=connection_name_completion
+    ),
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),
 ):
     """Remove an SSH connection."""
-    manager = get_manager()
-    
     try:
+        manager = get_manager()
         connection = manager.get_connection(name)
-        console.print(format_connection_detail(connection))
-        
-        if not force and not Confirm.ask(
-            f"Are you sure you want to remove connection '{name}'?",
-            default=False
-        ):
-            console.print("[yellow]Operation cancelled.[/yellow]")
-            return
-            
+
+        if not force:
+            console.print("[yellow]Connection to be removed:[/yellow]")
+            console.print(format_connection_detail(connection))
+            console.print()
+
+            if not Confirm.ask(
+                f"Are you sure you want to remove connection '{name}'?", default=False
+            ):
+                console.print("[yellow]Operation cancelled.[/yellow]")
+                return
+
         manager.remove_connection(name)
         console.print(f"[green]Successfully removed connection '{name}'[/green]")
-    except ValueError as e:
+    except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)
+
 
 @app.command()
 def connect(
-    name: str = typer.Argument(..., help="Connection name to connect to"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show command without executing"),
+    name: str = typer.Argument(
+        ...,
+        help="Connection name to connect to",
+        autocompletion=connection_name_completion,
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show command without executing"
+    ),
+    extra_args: Optional[str] = typer.Option(None, help="Extra SSH arguments"),
+    fuzzy: bool = typer.Option(
+        True, "--fuzzy/--no-fuzzy", help="Enable fuzzy search for connection names"
+    ),
 ):
     """Connect to a host using SSH."""
-    manager = get_manager()
-    
     try:
-        connection = manager.get_connection(name)
-        
+        manager = get_manager()
+
+        # Try exact match first
+        try:
+            connection = manager.get_connection(name)
+        except ValueError:
+            # If exact match fails and fuzzy search is enabled, try fuzzy search
+            if fuzzy:
+                fuzzy_connection = manager.find_connection_fuzzy(name)
+                if fuzzy_connection:
+                    console.print(
+                        f"[yellow]Exact match not found. Using fuzzy match:[/yellow]"
+                    )
+                    console.print(
+                        f"[cyan]'{name}' → '{fuzzy_connection.name}'[/cyan]\n"
+                    )
+                    connection = fuzzy_connection
+                else:
+                    # Show suggestions
+                    suggestions = manager.find_best_matches(name, limit=5)
+                    if suggestions:
+                        console.print(format_search_suggestions(suggestions, name))
+                        console.print(
+                            f"\n[yellow]Try: sshm connect <connection_name>[/yellow]"
+                        )
+                    else:
+                        console.print(
+                            f"[red]No connection found matching '{name}'[/red]"
+                        )
+                    sys.exit(1)
+            else:
+                raise
+
         # Build SSH command
         cmd = ["ssh"]
-        if connection.identity_file:
+
+        # Add identity file if specified
+        if connection.identity_file and connection.identity_file.exists():
             cmd.extend(["-i", str(connection.identity_file)])
+        elif connection.identity_file:
+            console.print(
+                f"[yellow]Warning: Identity file {connection.identity_file} not found[/yellow]"
+            )
+
+        # Add port if not default
         if connection.port != 22:
             cmd.extend(["-p", str(connection.port)])
+
+        # Add extra SSH options from config
+        for key, value in connection.extra_options.items():
+            cmd.extend(["-o", f"{key}={value}"])
+
+        # Add extra arguments if provided
+        if extra_args:
+            cmd.extend(extra_args.split())
+
+        # Add user@hostname
         cmd.append(f"{connection.user}@{connection.hostname}")
-        
+
         if dry_run:
-            console.print("[cyan]Command:[/cyan] " + " ".join(cmd))
+            console.print("[cyan]SSH Command:[/cyan]")
+            console.print(" ".join(cmd))
             return
-            
-        console.print(f"[green]Connecting to '{name}'...[/green]")
-        subprocess.run(cmd)
-    except ValueError as e:
+
+        console.print(
+            f"[green]Connecting to '{connection.name}' ({connection.hostname})...[/green]"
+        )
+        try:
+            subprocess.run(cmd, check=False)
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Connection interrupted by user[/yellow]")
+        except FileNotFoundError:
+            console.print(
+                "[red]Error: SSH command not found. Please install OpenSSH client.[/red]"
+            )
+            sys.exit(1)
+
+    except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)
-    except subprocess.CalledProcessError as e:
-        console.print(f"[red]Connection failed:[/red] {e}")
+
+        # Add extra arguments if provided
+        if extra_args:
+            cmd.extend(extra_args.split())
+
+        # Add user@hostname
+        cmd.append(f"{connection.user}@{connection.hostname}")
+
+        if dry_run:
+            console.print("[cyan]SSH Command:[/cyan]")
+            console.print(" ".join(cmd))
+            return
+
+        console.print(
+            f"[green]Connecting to '{name}' ({connection.hostname})...[/green]"
+        )
+        try:
+            subprocess.run(cmd, check=False)
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Connection interrupted by user[/yellow]")
+        except FileNotFoundError:
+            console.print(
+                "[red]Error: SSH command not found. Please install OpenSSH client.[/red]"
+            )
+            sys.exit(1)
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)
+
+
+@app.command()
+def test(
+    name: str = typer.Argument(
+        ..., help="Connection name to test", autocompletion=connection_name_completion
+    ),
+    timeout: int = typer.Option(10, help="Connection timeout in seconds"),
+):
+    """Test SSH connection without connecting."""
+    try:
+        manager = get_manager()
+        connection = manager.get_connection(name)
+
+        console.print(f"[cyan]Testing connection to '{name}'...[/cyan]")
+
+        # Build test command
+        cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}"]
+
+        if connection.identity_file and connection.identity_file.exists():
+            cmd.extend(["-i", str(connection.identity_file)])
+
+        if connection.port != 22:
+            cmd.extend(["-p", str(connection.port)])
+
+        cmd.extend([f"{connection.user}@{connection.hostname}", "exit"])
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode == 0:
+            console.print(f"[green]✓ Connection to '{name}' successful[/green]")
+        else:
+            console.print(f"[red]✗ Connection to '{name}' failed[/red]")
+            if result.stderr:
+                console.print(f"[red]Error: {result.stderr.strip()}[/red]")
+            sys.exit(1)
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(1)
+
 
 @app.command()
 def config(
-    action: str = typer.Argument(..., help="Action to perform: get, set"),
+    action: str = typer.Argument(..., help="Action to perform: get, set, show"),
     key: Optional[str] = typer.Argument(None, help="Config key to get/set"),
     value: Optional[str] = typer.Argument(None, help="Value to set"),
 ):
     """Manage SSH Manager configuration."""
-    if action not in ["get", "set"]:
-        console.print("[red]Invalid action. Use 'get' or 'set'[/red]")
-        sys.exit(1)
-        
-    config = AppConfig()
-    
-    if action == "get":
-        if key:
-            if hasattr(config, key):
-                console.print(f"{key}: {getattr(config, key)}")
+    try:
+        if action not in ["get", "set", "show"]:
+            console.print("[red]Invalid action. Use 'get', 'set', or 'show'[/red]")
+            sys.exit(1)
+
+        config_manager = ConfigManager()
+        config = config_manager.load_config()
+
+        if action == "show":
+            console.print("[cyan]SSH Manager Configuration:[/cyan]")
+            console.print(f"Config File: {config.config_file}")
+            console.print(f"Backup Directory: {config.backup_dir}")
+            console.print(f"Auto Backup: {config.auto_backup}")
+            console.print(f"Default Key: {config.default_key or 'None'}")
+            return
+
+        if action == "get":
+            if key:
+                if hasattr(config, key):
+                    console.print(f"{key}: {getattr(config, key)}")
+                else:
+                    console.print(f"[red]Unknown config key: {key}[/red]")
+                    console.print(
+                        "Available keys: config_file, backup_dir, auto_backup, default_key"
+                    )
+                    sys.exit(1)
             else:
-                console.print(f"[red]Unknown config key: {key}[/red]")
+                console.print_json(config.model_dump())
+        else:  # set
+            if not key or value is None:
+                console.print("[red]Both key and value are required for 'set'[/red]")
                 sys.exit(1)
+
+            try:
+                config_manager.set_setting(key, value)
+                console.print(f"[green]Successfully updated {key}[/green]")
+            except ValueError as e:
+                console.print(f"[red]Error:[/red] {e}")
+                sys.exit(1)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(1)
+
+
+@app.command()
+def export(
+    output_file: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Output file path"
+    ),
+    format: str = typer.Option("json", help="Export format: json, yaml"),
+):
+    """Export SSH connections to a file."""
+    try:
+        manager = get_manager()
+        connections = manager.list_connections()
+
+        if not connections:
+            console.print("[yellow]No connections to export[/yellow]")
+            return
+
+        # Prepare export data
+        export_data = {
+            "version": "1.0",
+            "exported_at": datetime.now().isoformat(),
+            "connections": [conn.model_dump() for conn in connections],
+        }
+
+        if output_file is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_file = Path(f"sshm_export_{timestamp}.{format}")
+
+        if format.lower() == "json":
+            output_file.write_text(json.dumps(export_data, indent=2, default=str))
         else:
-            console.print_json(config.model_dump())
-    else:  # set
-        if not key or not value:
-            console.print("[red]Both key and value are required for 'set'[/red]")
+            console.print(f"[red]Unsupported format: {format}[/red]")
             sys.exit(1)
-            
-        if not hasattr(config, key):
-            console.print(f"[red]Unknown config key: {key}[/red]")
-            sys.exit(1)
-            
-        setattr(config, key, value)
-        # Save configuration
-        config_file = Path.home() / ".ssh-manager" / "config.json"
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text(json.dumps(config.model_dump(), indent=2))
-        console.print(f"[green]Successfully updated {key}[/green]")
+
+        console.print(
+            f"[green]Exported {len(connections)} connections to {output_file}[/green]"
+        )
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(1)
+
+
+@app.command()
+def backup(
+    output_dir: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Backup directory"
+    ),
+):
+    """Create a manual backup of SSH config."""
+    try:
+        manager = get_manager()
+
+        if output_dir is None:
+            output_dir = manager.config.backup_dir
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = output_dir / f"config_{timestamp}.bak"
+
+        if manager.config.config_file.exists():
+            shutil.copy2(manager.config.config_file, backup_file)
+            console.print(f"[green]Backup created: {backup_file}[/green]")
+        else:
+            console.print("[yellow]No SSH config file found to backup[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(1)
+
 
 def main():
     """Entry point for the CLI."""
     app()
 
+
 if __name__ == "__main__":
     main()
+
+
+@app.command()
+def search(
+    query: str = typer.Argument(..., help="Search term for connection names"),
+    limit: int = typer.Option(10, "--limit", "-l", help="Maximum number of results"),
+    min_score: int = typer.Option(
+        40, "--min-score", help="Minimum fuzzy match score (0-100)"
+    ),
+):
+    """Search connections using fuzzy matching."""
+    try:
+        manager = get_manager()
+        matches = manager.find_best_matches(query, limit=limit)
+
+        if not matches:
+            console.print(f"[yellow]No connections found matching '{query}'[/yellow]")
+            return
+
+        # Filter by minimum score
+        filtered_matches = [
+            (conn, score) for conn, score in matches if score >= min_score
+        ]
+
+        if not filtered_matches:
+            console.print(
+                f"[yellow]No good matches found for '{query}' (min score: {min_score})[/yellow]"
+            )
+            console.print(
+                "[dim]Try lowering --min-score or use a different search term[/dim]"
+            )
+            return
+
+        console.print(format_search_suggestions(filtered_matches, query))
+
+        # Show usage hint
+        if filtered_matches:
+            best_match = filtered_matches[0][0]
+            console.print(f"\n[dim]Try: sshm connect {best_match.name}[/dim]")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(1)

@@ -1,0 +1,79 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --with dev
+
+      - name: Lint with black
+        run: |
+          poetry run black --check sshm tests
+
+      - name: Sort imports with isort
+        run: |
+          poetry run isort --check-only sshm tests
+
+      - name: Type checking with mypy
+        run: |
+          poetry run mypy sshm
+
+      - name: Test with pytest
+        run: |
+          poetry run pytest tests/ -v --cov=sshm --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  install-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        install-method: ["pip", "setup.py"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Test installation via pip
+        if: matrix.install-method == 'pip'
+        run: |
+          pip install .
+          sshm --help
+
+      - name: Test installation via setup.py
+        if: matrix.install-method == 'setup.py'
+        run: |
+          python setup.py install --user
+          export PATH="$PATH:$HOME/.local/bin"
+          sshm --help

@@ -1,27 +1,73 @@
 # SSH Manager (sshm)
 
 A modern command-line tool to manage your SSH connections with style. Easily manage your SSH config file with a beautiful interface.
+
 ![Local Image](assets/sshm_screenshot.png)
-![PyPI version](https://img.shields.io/pypi/v/sshm)
-![Python versions](https://img.shields.io/pypi/pyversions/sshm)
-![License](https://img.shields.io/pypi/l/sshm)
+
+[![PyPI version](https://img.shields.io/pypi/v/sshm)](https://pypi.org/project/sshm/)
+[![Python versions](https://img.shields.io/pypi/pyversions/sshm)](https://pypi.org/project/sshm/)
+[![License](https://img.shields.io/github/license/palace22/sshm)](https://github.com/palace22/sshm/blob/main/LICENSE)
+[![Tests](https://img.shields.io/github/actions/workflow/status/palace22/sshm/tests.yml)](https://github.com/palace22/sshm/actions)
 
 ## Features
 
-- 🚀 Simple and intuitive CLI interface
-- 📝 List all SSH connections in a beautiful table format
-- ➕ Add new SSH connections interactively
-- 🔄 Update existing connections
-- 🗑️ Remove connections safely
-- 🔌 Connect to hosts using simple aliases
-- 🔐 Automatic backup of SSH config file
-- 📊 Beautiful terminal UI using Rich
-- 📖 Built-in man pages and suggestions
+- 🚀 **Simple and intuitive CLI interface**
+- 📝 **List all SSH connections** in a beautiful table format
+- ➕ **Add new SSH connections** interactively or via command line
+- 🔄 **Update existing connections** with ease
+- 🗑️ **Remove connections** safely with confirmation
+- 🔌 **Connect to hosts** using simple aliases
+- 🔐 **Automatic backup** of SSH config file
+- 📊 **Beautiful terminal UI** using Rich
+- 🔍 **Search and filter** connections
+- 🧪 **Test SSH connectivity** before connecting
+- ⚙️ **Configurable settings** and preferences
+- 📤 **Export/Import** connections
+- 🛡️ **Input validation** and error handling
 
 ## Installation
 
+### Quick Install (Recommended)
+
 ```bash
-pip install git+https://github.com/palace22/sshm.git
+# One-liner installation
+curl -sSL https://raw.githubusercontent.com/palace22/sshm/main/install.sh | bash
+```
+
+### Manual Installation Options
+
+#### 1. From GitHub (Latest)
+
+```bash
+pip install --user git+https://github.com/palace22/sshm.git
+```
+
+#### 4. Development Installation
+
+```bash
+git clone https://github.com/palace22/sshm.git
+cd sshm
+pip install --user -e ".[dev]"
+```
+
+### Post-Installation Setup
+
+If the `sshm` command is not found after installation, add `~/.local/bin` to your PATH:
+
+```bash
+# For Zsh users
+echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.zshrc
+source ~/.zshrc
+
+# For Bash users
+echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### Verification
+
+```bash
+sshm --help
 ```
 
 ## Quick Start
@@ -30,35 +76,42 @@ pip install git+https://github.com/palace22/sshm.git
 # List all connections
 sshm list
 
-# Add a new connection
+# Add a new connection (interactive)
 sshm add
+
+# Add a connection via command line
+sshm add --name myserver --hostname example.com --user myuser --port 2222
 
 # Connect to a host
 sshm connect myserver
 
 # Update a connection
-sshm update myserver
+sshm update myserver --hostname new-example.com
 
 # Remove a connection
 sshm remove myserver
+
+# Test a connection
+sshm test myserver
+
+# Search connections
+sshm list --search web
+
+# Show detailed view
+sshm list --detailed
 ```
 
-## Usage
+sshm list --format json # Output in JSON format
+sshm list --search prod # Search for connections containing 'prod'
 
-### List Connections
-
-```bash
-sshm list  # List all connections in a table
-sshm list --format json  # Output in JSON format
-sshm list --search prod  # Search for connections containing 'prod'
-```
+````
 
 ### Add Connection
 
 ```bash
 sshm add  # Interactive mode
 sshm add --name myserver --host example.com --user admin --port 22  # Direct mode
-```
+````
 
 ### Update Connection
 
@@ -137,6 +190,7 @@ poetry run pytest
 ### Code Style
 
 This project uses:
+
 - Black for code formatting
 - isort for import sorting
 - mypy for type checking
