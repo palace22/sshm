@@ -35,27 +35,20 @@ def connection_name_completion(incomplete: str) -> list[str]:
         connections = manager.list_connections()
 
         if not incomplete:
-            # If no input, return all connection names
             return [conn.name for conn in connections]
 
-        # First try exact prefix matching (for better performance)
         prefix_matches = [
             conn.name for conn in connections if conn.name.startswith(incomplete)
         ]
         if prefix_matches:
             return prefix_matches
 
-        # If no prefix matches, use fuzzy matching and return ALL results
-        # This allows the shell to handle the filtering
         matches = manager.find_best_matches(incomplete, limit=50)
-        # Filter by minimum score of 30 and return all matches
         filtered_matches = [match[0].name for match in matches if match[1] >= 30]
 
-        # Return all fuzzy matches - the shell will filter them
         return filtered_matches
 
     except Exception:
-        # Fallback to empty list if there's any error
         return []
 
 
@@ -71,8 +64,8 @@ def list(
     search: Optional[str] = typer.Option(None, help="Filter connections by name"),
     detailed: bool = typer.Option(False, "--detailed", "-d", help="Show detailed view"),
     format: str = typer.Option("table", help="Output format: table, json, compact"),
-    page: int = typer.Option(1, "--page", "-p", help="Page number for pagination"),
-    per_page: int = typer.Option(10, "--per-page", help="Items per page"),
+    page: int = typer.Option(1, help="Page number for pagination"),
+    per_page: int = typer.Option(10, help="Items per page"),
     all_pages: bool = typer.Option(
         False, "--all", "-a", help="Show all connections without pagination"
     ),
@@ -103,10 +96,9 @@ def list(
         if detailed:
             for conn in connections:
                 console.print(format_connection_detail(conn))
-                console.print()  # Add spacing between connections
+                console.print()
             return
 
-        # Paginated table view
         if all_pages or len(connections) <= per_page:
             console.print(format_connection_table(connections))
             console.print(f"\n[dim]Total: {len(connections)} connections[/dim]")
@@ -114,7 +106,6 @@ def list(
             table, nav_info = format_paginated_table(connections, page, per_page)
             console.print(table)
 
-            # Show pagination info
             nav_text = (
                 f"[dim]Page {nav_info['current_page']} of {nav_info['total_pages']} | "
                 f"Showing {nav_info['showing_start']}-{nav_info['showing_end']} "
@@ -122,7 +113,6 @@ def list(
             )
             console.print(f"\n{nav_text}")
 
-            # Show navigation hints
             hints = []
             if nav_info["has_prev"]:
                 hints.append(f"sshm list --page {page - 1}")
@@ -143,12 +133,13 @@ def add(
     user: Optional[str] = typer.Option(None, help="SSH username"),
     port: Optional[int] = typer.Option(None, help="SSH port"),
     identity_file: Optional[Path] = typer.Option(None, help="SSH identity file"),
+    proxy_jump: Optional[str] = typer.Option(None, help="Proxy jump host"),
+    local_forward: Optional[str] = typer.Option(None, help="Local port forwarding"),
 ) -> None:
     """Add a new SSH connection."""
     try:
         manager = get_manager()
 
-        # Interactive mode if no arguments provided
         if not all([name, hostname, user]):
             console.print("[cyan]Adding new SSH connection[/cyan]")
             name = name or Prompt.ask("Connection name")
@@ -169,12 +160,20 @@ def add(
             else:
                 identity_file = None
 
+            if Confirm.ask("Add proxy jump?", default=False):
+                proxy_jump = Prompt.ask("Proxy jump host")
+
+            if Confirm.ask("Add local port forwarding?", default=False):
+                local_forward = Prompt.ask("Local forward (e.g. 8080:localhost:80)")
+
         connection = SSHConnection(
             name=name,
             hostname=hostname,
             user=user,
             port=port or 22,
             identity_file=identity_file,
+            proxy_jump=proxy_jump,
+            local_forward=local_forward,
         )
 
         manager.add_connection(connection)
@@ -194,14 +193,15 @@ def update(
     user: Optional[str] = typer.Option(None, help="New username"),
     port: Optional[int] = typer.Option(None, help="New port"),
     identity_file: Optional[Path] = typer.Option(None, help="New identity file"),
+    proxy_jump: Optional[str] = typer.Option(None, help="New proxy jump host"),
+    local_forward: Optional[str] = typer.Option(None, help="New local port forwarding"),
 ) -> None:
     """Update an existing SSH connection."""
     try:
         manager = get_manager()
         connection = manager.get_connection(name)
 
-        # Interactive mode if no options provided
-        if not any([hostname, user, port, identity_file]):
+        if not any([hostname, user, port, identity_file, proxy_jump, local_forward]):
             console.print("[cyan]Updating SSH connection[/cyan]")
             console.print(format_connection_detail(connection))
             console.print()
@@ -222,14 +222,23 @@ def update(
                     default=str(connection.identity_file or "~/.ssh/id_rsa"),
                 )
                 identity_file = Path(identity_file_str).expanduser()
+            if Prompt.ask("Update proxy jump?", default="n").lower() == "y":
+                proxy_jump = Prompt.ask(
+                    "New proxy jump", default=connection.proxy_jump or ""
+                )
+            if Prompt.ask("Update local forward?", default="n").lower() == "y":
+                local_forward = Prompt.ask(
+                    "New local forward", default=connection.local_forward or ""
+                )
 
-        # Update connection with new values
         updated_connection = SSHConnection(
             name=name,
             hostname=hostname or connection.hostname,
             user=user or connection.user,
             port=port or connection.port,
             identity_file=identity_file or connection.identity_file,
+            proxy_jump=proxy_jump or connection.proxy_jump,
+            local_forward=local_forward or connection.local_forward,
             extra_options=connection.extra_options,
         )
 
@@ -290,25 +299,19 @@ def connect(
     try:
         manager = get_manager()
 
-        # Try exact match first
         try:
             connection = manager.get_connection(name)
         except ValueError:
-            # If exact match fails and fuzzy search is enabled, try fuzzy search
             if fuzzy:
-                # Get all matching suggestions ranked by score
                 suggestions = manager.find_best_matches(name, limit=20)
 
                 if not suggestions:
                     console.print(f"[red]No connection found matching '{name}'[/red]")
                     sys.exit(1)
 
-                # Check if we should auto-connect: only if exactly ONE match
-                # has 90+ score
                 high_score_matches = [s for s in suggestions if s[1] >= 90]
 
                 if len(high_score_matches) == 1:
-                    # Exactly one high-confidence match - auto-connect
                     best_match = high_score_matches[0]
                     console.print(
                         "[yellow]Exact match not found. Using best match:[/yellow]"
@@ -319,12 +322,10 @@ def connect(
                     )
                     connection = best_match[0]
                 else:
-                    # Show all suggestions and let user choose
                     console.print(
                         f"[yellow]Multiple matches found for '{name}':[/yellow]\n"
                     )
 
-                    # Display suggestions with numbers
                     suggestions = (
                         suggestions
                         if len(high_score_matches) == 0
@@ -347,7 +348,6 @@ def connect(
 
                     console.print("\n[bold]0.[/bold] [red]Cancel[/red]")
 
-                    # Get user choice
                     try:
                         choice = Prompt.ask(
                             "\nSelect connection to connect to",
@@ -373,10 +373,8 @@ def connect(
             else:
                 raise
 
-        # Build SSH command
         cmd = ["ssh"]
 
-        # Add identity file if specified
         if connection.identity_file and connection.identity_file.exists():
             cmd.extend(["-i", str(connection.identity_file)])
         elif connection.identity_file:
@@ -385,19 +383,21 @@ def connect(
                 f"not found[/yellow]"
             )
 
-        # Add port if not default
         if connection.port != 22:
             cmd.extend(["-p", str(connection.port)])
 
-        # Add extra SSH options from config
+        if connection.proxy_jump:
+            cmd.extend(["-J", connection.proxy_jump])
+
+        if connection.local_forward:
+            cmd.extend(["-L", connection.local_forward])
+
         for key, value in connection.extra_options.items():
             cmd.extend(["-o", f"{key}={value}"])
 
-        # Add extra arguments if provided
         if extra_args:
             cmd.extend(extra_args.split())
 
-        # Add user@hostname
         cmd.append(f"{connection.user}@{connection.hostname}")
 
         if dry_run:
@@ -409,6 +409,7 @@ def connect(
             f"[green]Connecting to '{connection.name}' "
             f"({connection.hostname})...[/green]"
         )
+        console.print(f"[dim]Running: {' '.join(cmd)}[/dim]")
         try:
             subprocess.run(cmd, check=False)
         except KeyboardInterrupt:
@@ -439,7 +440,6 @@ def test(
 
         console.print(f"[cyan]Testing connection to '{name}'...[/cyan]")
 
-        # Build test command
         cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}"]
 
         if connection.identity_file and connection.identity_file.exists():
@@ -519,9 +519,7 @@ def config(
 
 @app.command()
 def export(
-    output_file: Optional[Path] = typer.Option(
-        None, "--output", "-o", help="Output file path"
-    ),
+    output_file: Optional[Path] = typer.Option(None, help="Output file path"),
     format: str = typer.Option("json", help="Export format: json, yaml"),
 ) -> None:
     """Export SSH connections to a file."""
@@ -533,7 +531,6 @@ def export(
             console.print("[yellow]No connections to export[/yellow]")
             return
 
-        # Prepare export data
         export_data = {
             "version": "1.0",
             "exported_at": datetime.now().isoformat(),
@@ -560,9 +557,7 @@ def export(
 
 @app.command()
 def backup(
-    output_dir: Optional[Path] = typer.Option(
-        None, "--output", "-o", help="Backup directory"
-    ),
+    output_dir: Optional[Path] = typer.Option(None, help="Backup directory"),
 ) -> None:
     """Create a manual backup of SSH config."""
     try:
@@ -586,22 +581,11 @@ def backup(
         sys.exit(1)
 
 
-def main() -> None:
-    """Entry point for the CLI."""
-    app()
-
-
-if __name__ == "__main__":
-    main()
-
-
 @app.command()
 def search(
     query: str = typer.Argument(..., help="Search term for connection names"),
-    limit: int = typer.Option(10, "--limit", "-l", help="Maximum number of results"),
-    min_score: int = typer.Option(
-        40, "--min-score", help="Minimum fuzzy match score (0-100)"
-    ),
+    limit: int = typer.Option(10, help="Maximum number of results"),
+    min_score: int = typer.Option(40, help="Minimum fuzzy match score (0-100)"),
 ) -> None:
     """Search connections using fuzzy matching."""
     try:
@@ -612,7 +596,6 @@ def search(
             console.print(f"[yellow]No connections found matching '{query}'[/yellow]")
             return
 
-        # Filter by minimum score
         filtered_matches = [
             (conn, score) for conn, score in matches if score >= min_score
         ]
@@ -628,7 +611,6 @@ def search(
 
         console.print(format_search_suggestions(filtered_matches, query))
 
-        # Show usage hint
         if filtered_matches:
             best_match = filtered_matches[0][0]
             console.print(f"\n[dim]Try: sshm connect {best_match.name}[/dim]")
@@ -636,3 +618,12 @@ def search(
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)
+
+
+def main() -> None:
+    """Entry point for the CLI."""
+    app()
+
+
+if __name__ == "__main__":
+    main()

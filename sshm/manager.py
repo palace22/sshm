@@ -106,12 +106,26 @@ class SSHManager:
         if any(conn.name == connection.name for conn in existing):
             raise ValueError(f"Connection '{connection.name}' already exists")
 
-        config_content = self._read_config()
-        if config_content and not config_content.endswith("\n"):
-            config_content += "\n"
+        self._backup_config()
 
-        new_content = config_content + "\n" + connection.to_config_string() + "\n"
-        self._write_config(new_content)
+        try:
+            # Check if we need a leading newline
+            needs_newline = False
+            if (
+                self.config.config_file.exists()
+                and self.config.config_file.stat().st_size > 0
+            ):
+                with open(self.config.config_file, "rb") as f:
+                    f.seek(-1, 2)
+                    if f.read(1) != b"\n":
+                        needs_newline = True
+
+            with open(self.config.config_file, "a", encoding="utf-8") as f:
+                if needs_newline:
+                    f.write("\n")
+                f.write("\n" + connection.to_config_string() + "\n")
+        except (IOError, OSError) as e:
+            raise ValueError(f"Failed to write SSH config file: {e}")
 
     def update_connection(self, name: str, connection: SSHConnection) -> None:
         """Update an existing SSH connection."""
@@ -224,10 +238,10 @@ class SSHManager:
 
                     # Update best score for this connection
                     if conn_name not in search_results:
-                        search_results[conn_name] = combined_score
+                        search_results[conn_name] = int(combined_score)
                     else:
                         search_results[conn_name] = max(
-                            search_results[conn_name], combined_score
+                            search_results[conn_name], int(combined_score)
                         )
 
         # Sort by score and limit results

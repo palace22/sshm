@@ -34,6 +34,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "typer>=0.12.0",
+        "click>=8.0.0,<8.2.0",
         "paramiko>=3.4.0",
         "rich>=13.7.0",
         "pydantic>=2.5.0",

@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -13,6 +13,8 @@ class SSHConnection(BaseModel):
     user: str
     port: int = Field(default=22, ge=1, le=65535)
     identity_file: Optional[Path] = None
+    proxy_jump: Optional[str] = None
+    local_forward: Optional[str] = None
     extra_options: Dict[str, str] = Field(default_factory=dict)
 
     @field_validator("name")
@@ -75,6 +77,18 @@ class SSHConnection(BaseModel):
         if self.identity_file:
             lines.append(f"    IdentityFile {self.identity_file}")
 
+        if self.proxy_jump:
+            lines.append(f"    ProxyJump {self.proxy_jump}")
+
+        if self.local_forward:
+            parts = self.local_forward.split(":")
+            if len(parts) >= 3:
+                local_part = ":".join(parts[:-2])
+                remote_part = ":".join(parts[-2:])
+                lines.append(f"    LocalForward {local_part} {remote_part}")
+            else:
+                lines.append(f"    LocalForward {self.local_forward}")
+
         for key, value in self.extra_options.items():
             lines.append(f"    {key} {value}")
 
@@ -91,7 +105,12 @@ class SSHConnection(BaseModel):
         if not name:
             raise ValueError("Host name cannot be empty")
 
-        data = {"name": name, "hostname": name, "user": "root", "extra_options": {}}
+        data: Dict[str, Any] = {
+            "name": name,
+            "hostname": name,
+            "user": "root",
+            "extra_options": {},
+        }
 
         for line in lines[1:]:
             line = line.strip()
@@ -115,6 +134,10 @@ class SSHConnection(BaseModel):
                     continue
             elif key.lower() == "identityfile":
                 data["identity_file"] = Path(value).expanduser()
+            elif key.lower() == "proxyjump":
+                data["proxy_jump"] = value
+            elif key.lower() == "localforward":
+                data["local_forward"] = value
             else:
                 data["extra_options"][key] = value
 

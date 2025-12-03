@@ -161,30 +161,11 @@ main() {
 
     # Parse command line arguments
     case "${1:-auto}" in
-        "github")
+        "github"|"auto"|*)
             install_from_github
-            ;;
-        "pypi")
-            install_from_pypi
-            ;;
-        "poetry")
-            install_with_poetry
             ;;
         "dev")
             install_dev
-            ;;
-        "auto"|*)
-            print_info "Auto-detecting installation method..."
-
-            # Try PyPI first (when available), then GitHub
-            if install_from_pypi 2>/dev/null; then
-                print_success "Installed from PyPI"
-            elif install_from_github; then
-                print_success "Installed from GitHub"
-            else
-                print_error "Installation failed"
-                exit 1
-            fi
             ;;
     esac
 
@@ -214,14 +195,12 @@ if [[ "${1}" == "--help" ]] || [[ "${1}" == "-h" ]]; then
     echo "Usage: $0 [METHOD]"
     echo ""
     echo "Methods:"
-    echo "  auto    - Auto-detect best installation method (default)"
+    echo "  auto    - Install from GitHub repository (default)"
     echo "  github  - Install from GitHub repository"
-    echo "  pypi    - Install from PyPI"
-    echo "  poetry  - Install using Poetry"
     echo "  dev     - Install for development"
     echo ""
     echo "Examples:"
-    echo "  $0              # Auto-install"
+    echo "  $0              # Auto-install from GitHub"
     echo "  $0 github       # Install from GitHub"
     echo "  $0 dev          # Development installation"
     exit 0

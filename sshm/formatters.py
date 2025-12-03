@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 
 from rich.columns import Columns
 from rich.console import Console
@@ -64,7 +64,7 @@ def format_config_preview(config_str: str) -> Syntax:
 
 def format_paginated_table(
     connections: List[SSHConnection], page: int = 1, per_page: int = 10
-) -> tuple[Table, dict]:
+) -> Tuple[Table, dict]:
     """Format connections in a paginated table with navigation info."""
     total = len(connections)
     start_idx = (page - 1) * per_page

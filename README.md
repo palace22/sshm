@@ -17,6 +17,8 @@ A modern command-line tool to manage your SSH connections with style. Easily man
 - 🔄 **Update existing connections** with ease
 - 🗑️ **Remove connections** safely with confirmation
 - 🔌 **Connect to hosts** using simple aliases
+- 🦘 **ProxyJump support** for bastion hosts
+- 🔗 **Local Port Forwarding** support
 - 🔐 **Automatic backup** of SSH config file
 - 📊 **Beautiful terminal UI** using Rich
 - 🔍 **Search and filter** connections
@@ -99,19 +101,17 @@ sshm list --search web
 
 # Show detailed view
 sshm list --detailed
-```
 
 sshm list --format json # Output in JSON format
 sshm list --search prod # Search for connections containing 'prod'
-
-````
+```
 
 ### Add Connection
 
 ```bash
 sshm add  # Interactive mode
 sshm add --name myserver --host example.com --user admin --port 22  # Direct mode
-````
+```
 
 ### Update Connection
 
@@ -132,6 +132,70 @@ sshm remove myserver --force  # Force remove without confirmation
 ```bash
 sshm connect myserver  # Connect to a server using its alias
 sshm connect myserver --dry-run  # Show the SSH command without executing
+```
+
+### ProxyJump (Bastion Host)
+
+To connect through a jump host (bastion), first define the bastion as its own connection:
+
+```bash
+# 1. Add the bastion host
+sshm add --name my-bastion \
+    --hostname 203.0.113.10 \
+    --user ec2-user \
+    --identity-file ~/.ssh/bastion-key.pem
+
+# 2. Add the target server with ProxyJump
+sshm add --name private-server \
+    --hostname 10.0.0.50 \
+    --user ubuntu \
+    --identity-file ~/.ssh/server-key.pem \
+    --proxy-jump my-bastion
+
+# 3. Connect (automatically jumps through bastion)
+sshm connect private-server
+```
+
+This generates the following SSH config:
+
+```
+Host my-bastion
+    HostName 203.0.113.10
+    User ec2-user
+    IdentityFile ~/.ssh/bastion-key.pem
+
+Host private-server
+    HostName 10.0.0.50
+    User ubuntu
+    IdentityFile ~/.ssh/server-key.pem
+    ProxyJump my-bastion
+```
+
+> **Note:** Both the bastion and target need their `IdentityFile` specified. The bastion key authenticates with the jump host, and the target key authenticates with the final server.
+
+### Local Port Forwarding
+
+Forward a remote port (e.g., a database) to your local machine:
+
+```bash
+# Add a connection with port forwarding
+sshm add --name db-tunnel \
+    --hostname 203.0.113.10 \
+    --user admin \
+    --local-forward 5432:database.internal:5432
+
+# Connect and access database at localhost:5432
+sshm connect db-tunnel
+```
+
+You can also combine ProxyJump with port forwarding:
+
+```bash
+sshm add --name db-tunnel \
+    --hostname 10.0.0.100 \
+    --user ubuntu \
+    --proxy-jump my-bastion \
+    --local-forward 5432:localhost:5432
 ```
 
 ## SSH Config Format
