@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -53,27 +53,16 @@ jobs:
 
   install-test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        install-method: ["pip", "setup.py"]
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
-      - name: Test installation via pip
-        if: matrix.install-method == 'pip'
+      - name: Install with pipx and smoke test
         run: |
-          pip install .
-          sshm --help
-
-      - name: Test installation via setup.py
-        if: matrix.install-method == 'setup.py'
-        run: |
-          python setup.py install --user
-          export PATH="$PATH:$HOME/.local/bin"
+          pipx install .
+          sshm --version
           sshm --help

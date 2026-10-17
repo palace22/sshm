@@ -1,11 +1,10 @@
 [run]
 source = sshm
-omit = 
+omit =
     */tests/*
     */test_*
     */__pycache__/*
     */site-packages/*
-    setup.py
 
 [report]
 exclude_lines =

@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "sshm"
-version = "0.1.0"
-description = "SSH CLI Manager"
+version = "0.2.0"
+description = "Manage, organize and connect to the hosts in your ~/.ssh/config"
 authors = ["palace22"]
 license = "GPL-3.0-or-later"
 packages = [{ include = "sshm" }]
@@ -17,6 +17,8 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Internet",
@@ -30,7 +32,6 @@ classifiers = [
 python = "^3.10"
 typer = "^0.12.5"
 click = ">=8.0.0,<8.2.0"
-paramiko = "^3.5.0"
 rich = "^13.9.3"
 pydantic = "^2.9.2"
 rapidfuzz = "^3.13.0"
@@ -39,7 +40,6 @@ rapidfuzz = "^3.13.0"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"
 pytest-cov = "^4.0.0"
-pytest-mock = "^3.12.0"
 black = "^24.10.0"
 isort = "^5.13.2"
 mypy = "^1.13.0"
@@ -48,7 +48,7 @@ flake8 = "^7.0.0"
 bandit = "^1.7.5"
 
 [tool.poetry.scripts]
-sshm = "sshm.cli:app"
+sshm = "sshm.cli:main"
 
 [build-system]
 requires = ["poetry-core"]
@@ -59,7 +59,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = ["--strict-markers", "--strict-config", "--verbose"]
+addopts = ["--strict-markers", "--strict-config"]
+filterwarnings = ["ignore:'autocompletion' is renamed:DeprecationWarning"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
