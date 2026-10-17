@@ -1,9 +1,13 @@
-"""SSH Manager - A modern CLI tool to manage SSH connections."""
+"""sshm - manage and connect to the hosts in your ~/.ssh/config."""
 
-__version__ = "0.1.0"
-__author__ = "palace22"
+from importlib.metadata import PackageNotFoundError, version
 
-from .manager import SSHManager
-from .models import AppConfig, SSHConnection
+try:
+    __version__ = version("sshm")
+except PackageNotFoundError:  # running from a source checkout
+    __version__ = "0.0.0+local"
 
-__all__ = ["SSHConnection", "AppConfig", "SSHManager"]
+from .manager import SSHManager  # noqa: E402
+from .models import AppConfig, SSHConnection  # noqa: E402
+
+__all__ = ["SSHConnection", "AppConfig", "SSHManager", "__version__"]

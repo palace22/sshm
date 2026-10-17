@@ -1,0 +1,331 @@
+.TH SSHM 1 "2026-10-17" "sshm 0.2.0" "User Commands"
+.
+.SH NAME
+sshm \- manage, organize and connect to the hosts in ~/.ssh/config
+.
+.SH SYNOPSIS
+.B sshm
+.br
+.B sshm
+.I COMMAND
+.RI [ OPTIONS ]
+.RI [ ARGS ]
+.
+.SH DESCRIPTION
+.B sshm
+edits
+.I ~/.ssh/config
+for you and connects to its hosts. The SSH config stays the only source of
+truth: plain
+.B ssh
+keeps working exactly as before.
+.PP
+Edits are lossless. Only the lines of the fields you change are rewritten;
+comments, formatting, repeated directives,
+.B Match
+blocks, wildcard hosts and
+.B Include
+directives are kept byte for byte. Hosts in
+.BR Include d
+files are listed and edited where they live. Multi-alias lines such as
+.B "Host db db\-alias"
+are supported.
+.PP
+Run without a command on a terminal to open the interactive picker.
+.
+.SH PICKER
+The picker uses the whole screen. Type to fuzzy-filter by name, alias, user,
+hostname and tags.
+.B @tag
+keeps hosts with a tag starting with
+.IR tag ;
+.B /folder
+keeps hosts in a folder starting with
+.IR folder .
+Hosts you connected to recently come first.
+.TP
+.BR Up / Down ", " Ctrl\-P / Ctrl\-N ", mouse wheel"
+Move the selection.
+.TP
+.BR PgUp / PgDn
+Move a page.
+.TP
+.B Tab
+Mark or unmark the selected host. With two or more marked,
+.B Enter
+opens them as tabs (see
+.BR TABS ).
+.TP
+.B Enter
+Connect to the selected host.
+.TP
+.B Mouse click
+Select a row; click the selected row again to connect.
+.TP
+.BR Ctrl\-U ", " Ctrl\-W
+Clear the query, delete the last word.
+.TP
+.BR Esc ", " Ctrl\-C
+Quit.
+.
+.SH TAGS AND FOLDERS
+.B Tags
+are labels; a host can have many. They are stored in a comment line that
+.B ssh
+ignores:
+.PP
+.RS
+.nf
+Host web
+    # sshm: tags=prod,web
+    HostName 10.0.0.1
+.fi
+.RE
+.PP
+.B Folders
+are real files. Folder
+.I work/acme
+is
+.IR ~/.ssh/sshm.d/work/acme.conf .
+A host lives in exactly one place: the main config or one folder file.
+The first time a folder is created, sshm adds one
+.B Include
+line at the top of
+.I ~/.ssh/config
+so that ssh loads every folder file. Folders nest up to three levels.
+.
+.SH TABS
+.B sshm open
+(or marking hosts in the picker) opens one tab per host. Tabs run on sshm's own
+tmux server
+.RB ( "tmux \-L sshm" ,
+tmux 3.0 or newer), so the user's tmux configuration and sessions are not
+affected. Inside an existing tmux session, hosts open as new windows of that
+session instead.
+.TP
+.BR "click a tab" ", " Alt\-Left / Right ", " Shift\-Left / Right ", " Alt\-1 .. 9
+Switch tabs.
+.TP
+.BR "click [ + ]" ", " Alt\-N
+New tab with the picker; the chosen host replaces it.
+.TP
+.B Alt\-W
+Close the tab (after confirmation).
+.TP
+.B Alt\-R
+Reconnect. A tab whose connection fails or drops stays open and shows
+.BR "connection closed" .
+.TP
+.B Alt\-D
+Detach. The tabs keep running;
+.B sshm tabs
+returns to them.
+.
+.SH COMMANDS
+.SS Hosts
+.TP
+.B sshm list \fR[\fB\-\-search\fR \fITEXT\fR] [\fB\-\-tag\fR \fITAG\fR]... [\fB\-\-folder\fR \fIFOLDER\fR] [\fB\-\-tree\fR] [\fB\-\-format\fR table|json|compact] [\fB\-\-detailed\fR] [\fB\-\-all\fR]
+List hosts. Optional columns (key, jump, forward, folder, tags) appear only
+when some host uses them.
+.B \-\-folder /
+means the main config.
+.B \-\-tree
+groups hosts by folder. Long lists are paginated to the terminal height
+.RB ( \-\-page ", " \-\-per\-page ", " \-\-all ).
+.TP
+.B sshm show \fINAME\fR [\fB\-\-raw\fR]
+Show one host.
+.B \-\-raw
+prints its block exactly as written in the file.
+.TP
+.B sshm search \fIQUERY\fR [\fB\-\-limit\fR \fIN\fR] [\fB\-\-min\-score\fR \fIN\fR]
+Rank hosts by fuzzy score against
+.IR QUERY .
+.TP
+.B sshm add \fR[\fB\-\-name\fR \fIN\fR] [\fB\-\-hostname\fR \fIH\fR] [\fB\-\-user\fR \fIU\fR] [\fB\-\-port\fR \fIP\fR] [\fB\-\-identity\-file\fR \fIF\fR] [\fB\-\-proxy\-jump\fR \fIJ\fR] [\fB\-\-local\-forward\fR \fISPEC\fR] [\fB\-\-tag\fR \fIT\fR]... [\fB\-\-folder\fR \fIF\fR]
+Add a host. Prompts for the rest when name, hostname or user is missing.
+.I SPEC
+is
+.B 8080:localhost:80
+or
+.BR "8080 localhost:80" .
+.TP
+.B sshm update \fINAME\fR [\fB\-\-new\-name\fR \fIN\fR] [\fB\-\-hostname\fR \fIH\fR] [\fB\-\-user\fR \fIU\fR] [\fB\-\-port\fR \fIP\fR] [\fB\-\-identity\-file\fR \fIF\fR] [\fB\-\-proxy\-jump\fR \fIJ\fR] [\fB\-\-local\-forward\fR \fISPEC\fR]
+Change fields of a host; prompts for every field when no option is given.
+Pass
+.B \-
+to clear an optional field, e.g.
+.BR "\-\-proxy\-jump \-" .
+.TP
+.B sshm rename \fINAME NEW_NAME\fR
+Rename a host or one of its aliases.
+.B ProxyJump
+references in other hosts are updated.
+.TP
+.B sshm copy \fISOURCE NEW_NAME\fR
+Clone a host, with all options and comments, into the same file.
+.TP
+.B sshm remove \fINAME\fR [\fB\-\-force\fR]
+Remove a host after confirmation; warns when other hosts jump through it.
+.SS Connecting
+.TP
+.B sshm
+Open the picker and connect to the chosen host.
+.TP
+.B sshm open \fR[\fINAME\fR | \fB@\fItag\fR | \fB/\fIfolder\fR]... [\fB\-\-dry\-run\fR] [\fB\-\-extra\-args\fR \fIARGS\fR]
+Open hosts as tabs.
+.BI @ tag
+and
+.BI / folder
+expand to every matching host. Without arguments the picker opens.
+.TP
+.B sshm tabs \fR[\fB\-\-close\fR]
+Attach to the open tabs, or close them all.
+.TP
+.B sshm connect \fR[\fINAME\fR | \fB@\fItag\fR | \fB/\fIfolder\fR] [\fB\-\-dry\-run\fR] [\fB\-\-extra\-args\fR \fIARGS\fR] [\fB\-\-no\-fuzzy\fR]
+Connect to a host. An unknown name falls back to fuzzy matching: one strong
+match (\(>=\~90%) is used directly, otherwise the picker opens with the name
+as query. Without a name, or with
+.BI @ tag
+or
+.BI / folder ,
+the picker opens. sshm runs
+.BI "ssh \-\- " NAME
+(plus
+.B \-F
+when
+.B config_file
+is not
+.IR ~/.ssh/config ),
+so ssh resolves the whole config itself.
+.B \-\-dry\-run
+prints the command instead.
+.TP
+.B sshm test \fINAME\fR [\fB\-\-timeout\fR \fISECONDS\fR]
+Check TCP reachability (skipped behind
+.B ProxyJump
+or
+.BR ProxyCommand ),
+then a non-interactive login with
+.BR BatchMode=yes .
+Prints
+.B [ OK ]
+or
+.B [FAIL]
+and exits non-zero on failure.
+.SS Organizing
+.TP
+.B sshm tag add \fINAME TAG\fR...
+.TQ
+.B sshm tag rm \fINAME TAG\fR...
+.TQ
+.B sshm tag list
+Add or remove tags, or list every tag with its host count.
+.TP
+.B sshm folder add \fIFOLDER\fR
+.TQ
+.B sshm folder rm \fIFOLDER\fR
+.TQ
+.B sshm folder list
+Create a folder, delete an empty one, or show the folder tree.
+.TP
+.B sshm mv \fINAME FOLDER\fR
+Move a host into
+.I FOLDER
+(created if needed);
+.B /
+moves it back to the main config. The block moves unchanged.
+.SS Data and settings
+.TP
+.B sshm export \fR[\fB\-\-output\-file\fR \fIFILE\fR]
+Write every host (with tags and folder) to JSON.
+.TP
+.B sshm import \fIFILE\fR [\fB\-\-overwrite\fR]
+Import a file written by
+.BR "sshm export" .
+.TP
+.B sshm backup \fR[\fB\-\-output\-dir\fR \fIDIR\fR]
+Back up the config and every folder file. Manual backups are never rotated.
+.TP
+.B sshm config show \fR|\fB get \fR[\fIKEY\fR] |\fB set \fIKEY VALUE\fR
+Show or change settings:
+.RS
+.TS
+l l l.
+Key	Default	Description
+_
+config_file	~/.ssh/config	SSH config to manage
+folders_dir	~/.ssh/sshm.d	Folder files
+backup_dir	~/.ssh/backups	Automatic backups
+auto_backup	true	Back up before writing
+max_backups	20	Kept per file (0 = all)
+default_key	(none)	Suggested by sshm add
+.TE
+.RE
+.TP
+.B sshm man \fR[\fB\-\-install\fR | \fB\-\-uninstall\fR]
+Show this manual.
+.B \-\-install
+copies it to
+.I ~/.local/share/man/man1
+so that
+.B man sshm
+works.
+.TP
+.B sshm \-\-version
+Print the banner and version.
+.TP
+.B sshm \-\-install\-completion
+Install shell completion for host, tag and folder names.
+.
+.SH ENVIRONMENT
+.TP
+.B SSHM_CONFIG
+Path of the settings file instead of
+.IR ~/.ssh\-manager/config.json .
+Handy to try sshm on a copy of your config.
+.TP
+.B SSHM_NO_ANIM
+Disable the logo sweep and typing effects. They are already off when
+output is not a terminal.
+.
+.SH FILES
+.TP
+.I ~/.ssh/config
+The OpenSSH config file.
+.TP
+.I ~/.ssh/sshm.d/
+Folder files
+.RI ( name .conf,
+nested in subdirectories).
+.TP
+.I ~/.ssh/backups/
+Backups:
+.IB file . timestamp .bak
+(automatic, rotated) and
+.IB file . timestamp .manual.bak
+(from
+.BR "sshm backup" ).
+.TP
+.I ~/.ssh\-manager/config.json
+sshm settings.
+.TP
+.I ~/.ssh\-manager/history.json
+Last connection time per host (picker order).
+.TP
+.I ~/.ssh\-manager/tmux.conf
+tmux configuration for the tabs, regenerated every time tabs are opened.
+.
+.SH EXIT STATUS
+.B 0
+on success,
+.B 1
+on errors, otherwise the exit status of
+.BR ssh .
+.
+.SH SEE ALSO
+.BR ssh (1),
+.BR ssh_config (5)
+.
+.SH AUTHOR
+palace22
