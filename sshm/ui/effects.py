@@ -9,7 +9,6 @@ import os
 import time
 from typing import ContextManager, Dict, Iterator, List, Optional
 
-from rich.color import Color
 from rich.console import Console
 from rich.live import Live
 from rich.status import Status
@@ -28,8 +27,8 @@ _HALF_BLOCKS = {("#", "#"): "█", ("#", "."): "▀", (".", "#"): "▄", (".", "
 LEAN = "right"
 
 _ASCII_LOGO = [r" ___ ___| |_  _ __", r"(_-<(_-<| ' \| '  \ ", r"/__//__/|_||_|_|_|_|"]
-_FROM, _TO = Color.parse("#5fd7ff"), Color.parse("#af87ff")  # cyan -> violet
-_BEAM = Style(color="bright_white", bold=True)
+# No colours: the logo uses the terminal's text colour; the beam is bold.
+_BEAM = Style(bold=True)
 
 
 def enabled(console: Console) -> bool:
@@ -59,18 +58,9 @@ def logo_lines(console: Console) -> List[str]:
     return _ASCII_LOGO
 
 
-def _gradient(x: int, width: int) -> Style:
-    blend = x / max(1, width - 1)
-    r, g, b = (
-        int(a + (z - a) * blend)
-        for a, z in zip(_FROM.get_truecolor(), _TO.get_truecolor())
-    )
-    return Style(color=Color.from_rgb(r, g, b), bold=True)
-
-
 def logo(console: Console, reveal: Optional[int] = None) -> Text:
-    """The coloured logo; with ``reveal`` only columns up to it are drawn,
-    the last one as a bright "beam", like a CRT tracing it."""
+    """The logo; with ``reveal`` only columns up to it are drawn, the last one
+    in bold as the "beam", like a CRT tracing it."""
     lines = logo_lines(console)
     width = max(len(line) for line in lines)
     text = Text(no_wrap=True, overflow="crop")
@@ -79,7 +69,7 @@ def logo(console: Console, reveal: Optional[int] = None) -> Text:
             if ch == " " or (reveal is not None and x > reveal):
                 text.append(" ")
             else:
-                text.append(ch, _BEAM if x == reveal else _gradient(x, width))
+                text.append(ch, _BEAM if x == reveal else "")
         if row < len(lines) - 1:
             text.append("\n")
     return text
@@ -95,7 +85,7 @@ def logo_frames(console: Console) -> Iterator[Text]:
 
 def tagline(version: str, *extra: str) -> Text:
     text = Text.assemble((" ssh config manager", "dim"), (" :: ", "dim"))
-    text.append(f"v{version}", "cyan")
+    text.append(f"v{version}")
     for item in extra:
         text.append(" :: ", "dim")
         text.append(item, "dim")
