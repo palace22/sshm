@@ -1,281 +1,339 @@
-# SSH Manager (sshm)
+# sshm
 
-A modern command-line tool to manage your SSH connections with style. Easily manage your SSH config file with a beautiful interface.
+Manage, organize and connect to the hosts in your `~/.ssh/config` from the
+terminal.
 
-![Local Image](assets/sshm_screenshot.png)
-
-[![PyPI version](https://img.shields.io/pypi/v/sshm)](https://pypi.org/project/sshm/)
-[![Python versions](https://img.shields.io/pypi/pyversions/sshm)](https://pypi.org/project/sshm/)
 [![License](https://img.shields.io/github/license/palace22/sshm)](https://github.com/palace22/sshm/blob/main/LICENSE)
 [![Tests](https://img.shields.io/github/actions/workflow/status/palace22/sshm/tests.yml)](https://github.com/palace22/sshm/actions)
 
-## Features
+```
+█▀▀▀ █▀▀▀ █    ▄▄▄▄▄
+ ▀▀▀█ ▀▀▀█ █▀▀█ █ █ █
+  ▀▀▀▀ ▀▀▀▀ ▀  ▀ ▀ ▀ ▀
+ ssh config manager :: v0.2.0 :: 53 hosts
 
-- 🚀 **Simple and intuitive CLI interface**
-- 📝 **List all SSH connections** in a beautiful table format
-- ➕ **Add new SSH connections** interactively or via command line
-- 🔄 **Update existing connections** with ease
-- 🗑️ **Remove connections** safely with confirmation
-- 🔌 **Connect to hosts** using simple aliases
-- 🦘 **ProxyJump support** for bastion hosts
-- 🔗 **Local Port Forwarding** support
-- 🔐 **Automatic backup** of SSH config file
-- 📊 **Beautiful terminal UI** using Rich
-- 🔍 **Search and filter** connections
-- 🧪 **Test SSH connectivity** before connecting
-- ⚙️ **Configurable settings** and preferences
-- 📤 **Export/Import** connections
-- 🛡️ **Input validation** and error handling
+> @prod db_
+──────────────────────────────────────────────────────────────────
+>* db-prod      postgres@10.0.0.2    work/acme  @prod @db
+ * db-prod-ro   reader@10.0.0.3      work/acme  @prod @db
 
-## Installation
-
-### Quick Install (Recommended)
-
-```bash
-# One-liner installation
-curl -sSL https://raw.githubusercontent.com/palace22/sshm/main/install.sh | bash
+──────────────────────────────────────────────────────────────────
+  2/53  2 marked   up/down move   tab mark   enter open 2 tabs   esc quit
+  sshm --help all commands   sshm man manual   sshm add new host
 ```
 
-### Manual Installation Options
+- **Your SSH config stays the source of truth.** No database. Plain `ssh`
+  keeps working, and sshm only adds things ssh already understands.
+- **Lossless edits.** Only the lines you change are rewritten. Comments,
+  formatting, repeated options, `Match` blocks, wildcard hosts and `Include`
+  files stay exactly as they were.
+- **Interactive picker.** Run `sshm`, type to fuzzy-filter, press enter or
+  click. Recently used hosts come first.
+- **Tabs.** Open several hosts at once, one tab each. Switch with a mouse
+  click or `alt-left/right`. Tabs keep running after you detach.
+- **Tags and folders.** Tags are labels (`@prod`, `@db`). Folders are real
+  files under `~/.ssh/sshm.d/`.
+- **Safe writes.** Atomic writes, the file mode is kept, symlinked configs
+  (dotfile managers) keep working, and there are rotated automatic backups.
 
-#### 1. From GitHub (Latest)
+## Install
 
-```bash
-pip install --user git+https://github.com/palace22/sshm.git
-```
+You need Python 3.10+ and the OpenSSH client. Tabs also need
+[tmux](https://github.com/tmux/tmux) 3.0+ (`sudo dnf install tmux`,
+`sudo apt install tmux`, `brew install tmux`). Everything else works without
+it.
 
-#### 4. Development Installation
-
-```bash
-git clone https://github.com/palace22/sshm.git
-cd sshm
-pip install --user -e ".[dev]"
-```
-
-### Post-Installation Setup
-
-If the `sshm` command is not found after installation, add `~/.local/bin` to your PATH:
-
-```bash
-# For Zsh users
-echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.zshrc
-source ~/.zshrc
-
-# For Bash users
-echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-### Verification
+**Script** (uses pipx or uv if available, otherwise `pip --user`; also
+installs the man page):
 
 ```bash
-sshm --help
+curl -fsSL https://raw.githubusercontent.com/palace22/sshm/main/install.sh | bash
 ```
 
-## Quick Start
+**pipx** (recommended):
 
 ```bash
-# List all connections
-sshm list
-
-# Add a new connection (interactive)
-sshm add
-
-# Add a connection via command line
-sshm add --name myserver --hostname example.com --user myuser --port 2222
-
-# Connect to a host
-sshm connect myserver
-
-# Update a connection
-sshm update myserver --hostname new-example.com
-
-# Remove a connection
-sshm remove myserver
-
-# Test a connection
-sshm test myserver
-
-# Search connections
-sshm list --search web
-
-# Show detailed view
-sshm list --detailed
-
-sshm list --format json # Output in JSON format
-sshm list --search prod # Search for connections containing 'prod'
+pipx install git+https://github.com/palace22/sshm.git
 ```
 
-### Add Connection
+**uv**:
 
 ```bash
-sshm add  # Interactive mode
-sshm add --name myserver --host example.com --user admin --port 22  # Direct mode
+uv tool install git+https://github.com/palace22/sshm.git
 ```
 
-### Update Connection
+Check that it works:
 
 ```bash
-sshm update myserver  # Interactive mode
-sshm update myserver --host new-example.com  # Update specific fields
+sshm --version
 ```
 
-### Remove Connection
+If `sshm` is not found, add `~/.local/bin` to your `PATH` (with pipx, run
+`pipx ensurepath`), then open a new shell.
+
+> Note: the `sshm` package on PyPI is a different project. Install from
+> GitHub as shown above.
+
+### Update
 
 ```bash
-sshm remove myserver  # With confirmation
-sshm remove myserver --force  # Force remove without confirmation
+pipx reinstall sshm                     # pipx
+uv tool install --reinstall git+https://github.com/palace22/sshm.git   # uv
+curl -fsSL https://raw.githubusercontent.com/palace22/sshm/main/install.sh | bash   # script
 ```
+
+Install a specific branch or tag with
+`pipx install --force git+https://github.com/palace22/sshm.git@<ref>` or
+`./install.sh --ref <ref>`.
+
+### Uninstall
+
+```bash
+sshm man --uninstall       # if you ran 'sshm man --install'
+pipx uninstall sshm        # or: uv tool uninstall sshm / ./install.sh --uninstall (does both)
+```
+
+Uninstalling leaves your `~/.ssh/config` alone. sshm's own settings live in
+`~/.ssh-manager/`.
+
+### Shell completion and man page
+
+```bash
+sshm --install-completion   # completes host, tag and folder names (restart the shell)
+sshm man                    # the manual, always available
+sshm man --install          # once, so plain 'man sshm' works too (install.sh does this)
+```
+
+## Try it without touching your real config
+
+sshm reads its settings from the file named by `SSHM_CONFIG`. You can point it
+at a copy of your config:
+
+```bash
+mkdir -p ~/sshm-try && cp ~/.ssh/config ~/sshm-try/config
+cat > ~/sshm-try/settings.json <<EOF
+{
+  "config_file": "$HOME/sshm-try/config",
+  "folders_dir": "$HOME/sshm-try/sshm.d",
+  "backup_dir": "$HOME/sshm-try/backups"
+}
+EOF
+export SSHM_CONFIG=~/sshm-try/settings.json
+
+sshm list            # everything now reads and writes ~/sshm-try
+unset SSHM_CONFIG    # back to the real ~/.ssh/config
+```
+
+## Using it
 
 ### Connect
 
 ```bash
-sshm connect myserver  # Connect to a server using its alias
-sshm connect myserver --dry-run  # Show the SSH command without executing
+sshm                      # picker: type to filter, enter to connect, esc to quit
+sshm connect web          # by name or alias
+sshm connect wbe          # typo: a single strong fuzzy match connects directly,
+                          # otherwise the picker opens with "wbe" typed in
+sshm connect @prod        # picker showing only hosts tagged prod
+sshm connect /work        # picker showing only hosts in folder work (and below)
+sshm connect web --dry-run               # print the ssh command
+sshm connect web --extra-args "-L 8080:localhost:80 -v"
 ```
 
-### ProxyJump (Bastion Host)
+The picker uses the whole screen and gives it back when you leave.
 
-To connect through a jump host (bastion), first define the bastion as its own connection:
+| Key / mouse                  | Action                                         |
+| ---------------------------- | ---------------------------------------------- |
+| type                         | fuzzy filter (name, aliases, user, host, tags) |
+| `@tag`, `/folder` in query   | only hosts with that tag / in that folder      |
+| `up`/`down`, `ctrl-p`/`ctrl-n`, `pgup`/`pgdn`, wheel | move              |
+| `tab`                        | mark/unmark the host (open several as tabs)    |
+| `enter`, or click the selected row | connect, or open the marked hosts as tabs |
+| click a row                  | select it                                      |
+| `ctrl-u` / `ctrl-w`          | clear the query / delete a word                |
+| `esc`, `ctrl-c`              | quit                                           |
+
+sshm runs `ssh -- <alias>`, so ssh applies your whole config (`Host *`
+defaults, `Match` blocks, includes). It adds `-F <file>` when you manage a file
+other than `~/.ssh/config`.
+
+### Tabs
+
+You can open several connections at once, one tab per host:
 
 ```bash
-# 1. Add the bastion host
-sshm add --name my-bastion \
-    --hostname 203.0.113.10 \
-    --user ec2-user \
-    --identity-file ~/.ssh/bastion-key.pem
-
-# 2. Add the target server with ProxyJump
-sshm add --name private-server \
-    --hostname 10.0.0.50 \
-    --user ubuntu \
-    --identity-file ~/.ssh/server-key.pem \
-    --proxy-jump my-bastion
-
-# 3. Connect (automatically jumps through bastion)
-sshm connect private-server
+sshm open web db api          # three tabs
+sshm open @prod               # one tab per host tagged prod
+sshm open /work               # every host in folder work
+sshm                          # or mark hosts in the picker with tab, then enter
+sshm tabs                     # come back to your tabs after detaching
+sshm tabs --close             # close them all
 ```
 
-This generates the following SSH config:
-
 ```
-Host my-bastion
-    HostName 203.0.113.10
-    User ec2-user
-    IdentityFile ~/.ssh/bastion-key.pem
-
-Host private-server
-    HostName 10.0.0.50
-    User ubuntu
-    IdentityFile ~/.ssh/server-key.pem
-    ProxyJump my-bastion
+ sshm   1 web   2 db   3 api  [ + ]        alt-</> switch  alt-n new  alt-w close  alt-d detach
+ deploy@web:~$ _
 ```
 
-> **Note:** Both the bastion and target need their `IdentityFile` specified. The bastion key authenticates with the jump host, and the target key authenticates with the final server.
+| Key / mouse                      | Action                                        |
+| -------------------------------- | --------------------------------------------- |
+| click a tab, `alt-left/right`, `shift-left/right`, `alt-1`..`alt-9` | switch tabs |
+| click `[ + ]`, `alt-n`           | new tab: opens the picker, the host you pick replaces it |
+| `alt-w`                          | close the tab (asks first)                    |
+| `alt-r`                          | reconnect a tab whose connection dropped      |
+| `alt-d`                          | detach: tabs keep running, `sshm tabs` returns |
+| mouse wheel                      | scroll back in a tab                          |
 
-### Local Port Forwarding
+When a connection fails or drops, its tab stays open and shows
+`connection closed`, so you can read the error and press `alt-r` to
+reconnect.
 
-Forward a remote port (e.g., a database) to your local machine:
+The tabs run on sshm's own tmux server (`tmux -L sshm`), so your
+`~/.tmux.conf` and your tmux sessions are not affected. If you run sshm inside
+tmux, the hosts open as new windows of your current session instead. Some
+terminals (VS Code's, for example) capture `alt` shortcuts: use the mouse,
+`shift-left/right`, or tmux's normal `ctrl-b` keys there.
+
+### List and inspect
 
 ```bash
-# Add a connection with port forwarding
-sshm add --name db-tunnel \
-    --hostname 203.0.113.10 \
-    --user admin \
-    --local-forward 5432:database.internal:5432
-
-# Connect and access database at localhost:5432
-sshm connect db-tunnel
+sshm list                     # table; columns such as KEY/JUMP/TAGS appear only when used
+sshm list --tag prod --tag db # hosts with both tags
+sshm list --folder work       # hosts in work and its subfolders ('/' = main config)
+sshm list --tree              # folder tree
+sshm list --search 10.0.      # substring filter
+sshm list --format json       # also: compact; --detailed for one panel per host
+sshm show web                 # one host
+sshm show web --raw           # the block exactly as written in the file
+sshm search "deploy prod"     # ranked fuzzy search with scores
+sshm test web                 # [ OK ] / [FAIL]: TCP check + non-interactive login
 ```
 
-You can also combine ProxyJump with port forwarding:
+### Add, change, remove
 
 ```bash
-sshm add --name db-tunnel \
-    --hostname 10.0.0.100 \
-    --user ubuntu \
-    --proxy-jump my-bastion \
-    --local-forward 5432:localhost:5432
+sshm add                                   # interactive
+sshm add --name web --hostname 10.0.0.1 --user deploy --port 2222 \
+         --identity-file ~/.ssh/id_ed25519 --tag prod --folder work
+
+sshm update web                            # interactive: enter keeps, '-' clears
+sshm update web --hostname 10.0.0.9 --port 22
+sshm update web --proxy-jump -             # '-' clears an optional field
+
+sshm rename web web-old        # also renames aliases; ProxyJump references follow
+sshm copy web web-staging      # clone with all options and comments
+sshm remove web                # asks first; warns if other hosts jump through it
 ```
 
-## SSH Config Format
-
-The tool manages connections in your SSH config file (`~/.ssh/config`). Each entry follows this format:
-
-```
-Host myserver
-    HostName example.com
-    User admin
-    Port 22
-    IdentityFile ~/.ssh/id_rsa
-    # Additional SSH options...
-```
-
-## Configuration
-
-SSH Manager respects your existing SSH config file and makes safe modifications. Configuration options:
+### Jump hosts and port forwarding
 
 ```bash
-# Set default SSH key
-sshm config set default_key ~/.ssh/id_rsa
-
-# Set backup directory
-sshm config set backup_dir ~/.ssh/backups
-
-# Enable/disable automatic backups
-sshm config set auto_backup true
+sshm add --name bastion --hostname 203.0.113.10 --user ec2-user \
+         --identity-file ~/.ssh/bastion.pem
+sshm add --name app --hostname 10.0.0.50 --user ubuntu \
+         --proxy-jump bastion --local-forward 5432:localhost:5432
+sshm connect app       # goes through bastion, localhost:5432 -> app:5432
 ```
+
+### Tags
+
+Tags are labels, and a host can have any number of them.
+
+```bash
+sshm tag add web prod frontend
+sshm tag rm web frontend
+sshm tag list                  # every tag with its host count
+```
+
+A tag is stored as a comment, which ssh ignores:
+
+```
+Host web
+    # sshm: tags=prod,frontend
+    HostName 10.0.0.1
+```
+
+### Folders
+
+Folders are real files, and each host lives in exactly one place.
+
+```bash
+sshm folder add work           # creates ~/.ssh/sshm.d/work.conf
+sshm folder add work/acme      # creates ~/.ssh/sshm.d/work/acme.conf (up to 3 levels)
+sshm mv web work/acme          # moves the Host block, unchanged, into that file
+sshm mv web /                  # back to ~/.ssh/config
+sshm folder list               # tree of folders and hosts
+sshm folder rm work/acme       # only when empty
+```
+
+The first time you create a folder, sshm adds one line at the top of
+`~/.ssh/config`, so ssh loads every folder file:
+
+```
+# sshm folders (sshm folder --help)
+Include ~/.ssh/sshm.d/*.conf ~/.ssh/sshm.d/*/*.conf ~/.ssh/sshm.d/*/*/*.conf
+```
+
+The folder files are ordinary ssh config files. You can edit them by hand,
+keep them in git, or sync only `work/` to another machine.
+
+### Export, import, backup
+
+```bash
+sshm export --output-file hosts.json      # includes tags and folders
+sshm import hosts.json                    # skips names that already exist
+sshm import hosts.json --overwrite
+sshm backup                               # manual backup of config + folder files
+```
+
+Before writing a file, sshm saves a copy of it to `~/.ssh/backups/` and keeps
+the last 20 (`max_backups`). Manual backups (`*.manual.bak`) are never
+rotated. To restore a backup, copy it back over the file.
+
+## Settings
+
+```bash
+sshm config show
+sshm config set max_backups 50
+sshm config set auto_backup false
+sshm config set default_key ~/.ssh/id_ed25519   # suggested by 'sshm add'
+```
+
+| Key           | Default           | Meaning                                           |
+| ------------- | ----------------- | ------------------------------------------------- |
+| `config_file` | `~/.ssh/config`   | SSH config file to manage                         |
+| `folders_dir` | `~/.ssh/sshm.d`   | Where folder files live                           |
+| `backup_dir`  | `~/.ssh/backups`  | Automatic backups                                 |
+| `auto_backup` | `true`            | Back up each file before writing it               |
+| `max_backups` | `20`              | Automatic backups kept per file (`0` = unlimited) |
+| `default_key` | none              | Identity file suggested by `sshm add`             |
+
+Environment variables:
+
+- `SSHM_CONFIG`: path of the settings file. Default: `~/.ssh-manager/config.json`.
+- `SSHM_NO_ANIM=1`: turns off the logo sweep and typing effects. They are
+  already off when output is piped.
 
 ## Development
 
-### Setup Development Environment
-
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/ssh-manager
-cd ssh-manager
-
-# Install poetry
-curl -sSL https://install.python-poetry.org | python3 -
-
-# Install dependencies
-poetry install
-
-# Setup pre-commit hooks
-poetry run pre-commit install
+git clone https://github.com/palace22/sshm.git && cd sshm
+poetry install --with dev
+poetry run sshm --help          # run from the checkout
+poetry run pytest               # tests (they never touch your real ~/.ssh)
+poetry run black sshm tests && poetry run isort sshm tests && poetry run mypy sshm
 ```
 
-### Running Tests
+Layout:
 
-```bash
-poetry run pytest
-```
-
-### Code Style
-
-This project uses:
-
-- Black for code formatting
-- isort for import sorting
-- mypy for type checking
-- pre-commit hooks to enforce quality
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+| Path               | What it does                                                        |
+| ------------------ | ------------------------------------------------------------------- |
+| `sshm/sshconfig.py`| Lossless parser/renderer for ssh config files (`Include`, metadata) |
+| `sshm/models.py`   | `SSHConnection` (a view over one Host block) and `AppConfig`        |
+| `sshm/manager.py`  | Operations: list, add, update, move, tag, rename, backups, ssh cmd  |
+| `sshm/tabs.py`     | Tabs on a private tmux server (generated config, mouse, keys)       |
+| `sshm/cli/`        | Typer commands (`hosts`, `connect`, `organize`, `data`)             |
+| `sshm/ui/`         | Tables, the picker, logo and terminal effects                       |
 
 ## License
 
-This project is licensed under the GPL-3.0 License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- [Typer](https://typer.tiangolo.com/) for the CLI interface
-- [Rich](https://rich.readthedocs.io/) for beautiful terminal formatting
-- [paramiko](http://www.paramiko.org/) for SSH functionality
+GPL-3.0-or-later. See [LICENSE](LICENSE).
