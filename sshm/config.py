@@ -1,18 +1,47 @@
-"""Configuration management for SSH Manager."""
+"""Persistent sshm settings (``~/.ssh-manager/config.json``)."""
 
 import json
+import os
+import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from .models import AppConfig
+
+# Point sshm at another settings file, e.g. to try it on a sandbox config.
+CONFIG_ENV = "SSHM_CONFIG"
+DEFAULT_CONFIG_PATH = Path.home() / ".ssh-manager" / "config.json"
+
+PATH_KEYS = ("config_file", "backup_dir", "folders_dir", "default_key")
+_TRUE = {"1", "true", "yes", "y", "on"}
+_FALSE = {"0", "false", "no", "n", "off"}
+
+
+def parse_bool(value: Any) -> bool:
+    """Parse a boolean from CLI text ('false' must not become True)."""
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in _TRUE:
+        return True
+    if text in _FALSE:
+        return False
+    raise ValueError(f"Expected a boolean (true/false), got '{value}'")
 
 
 class ConfigManager:
     """Manages persistent configuration for SSH Manager."""
 
     def __init__(self, config_path: Optional[Path] = None):
-        self.config_path = config_path or Path.home() / ".ssh-manager" / "config.json"
-        self._config_cache: Optional[Dict[str, Any]] = None
+        env = os.environ.get(CONFIG_ENV)
+        self.config_path = config_path or (
+            Path(env).expanduser() if env else DEFAULT_CONFIG_PATH
+        )
+
+    @property
+    def data_dir(self) -> Path:
+        """Directory for sshm's own state (settings, connection history)."""
+        return self.config_path.parent
 
     def load_config(self) -> AppConfig:
         """Load configuration from file or return defaults."""
@@ -20,54 +49,45 @@ class ConfigManager:
             return AppConfig()
 
         try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            # Convert string paths back to Path objects
-            if "config_file" in data:
-                data["config_file"] = Path(data["config_file"]).expanduser()
-            if "backup_dir" in data:
-                data["backup_dir"] = Path(data["backup_dir"]).expanduser()
-            if "default_key" in data and data["default_key"]:
-                data["default_key"] = Path(data["default_key"]).expanduser()
-
+            data = json.loads(self.config_path.read_text(encoding="utf-8"))
+            for key in PATH_KEYS:
+                if data.get(key):
+                    data[key] = Path(data[key]).expanduser()
             return AppConfig(**data)
-        except (json.JSONDecodeError, IOError, KeyError, TypeError) as e:
-            print(f"Warning: Failed to load config from {self.config_path}: {e}")
+        except (OSError, TypeError, ValueError) as e:
+            print(
+                f"Warning: Failed to load config from {self.config_path}: {e}",
+                file=sys.stderr,
+            )
             return AppConfig()
 
     def save_config(self, config: AppConfig) -> None:
         """Save configuration to file."""
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Convert Path objects to strings for JSON serialization
-        data = config.model_dump()
-        for key, value in data.items():
-            if isinstance(value, Path):
-                data[key] = str(value)
-
         try:
-            with open(self.config_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-        except (IOError, OSError) as e:
+            self.config_path.write_text(
+                json.dumps(config.model_dump(mode="json"), indent=2),
+                encoding="utf-8",
+            )
+        except OSError as e:
             raise ValueError(f"Failed to save config to {self.config_path}: {e}")
-
-    def get_setting(self, key: str, default: Any = None) -> Any:
-        """Get a specific configuration setting."""
-        config = self.load_config()
-        return getattr(config, key, default)
 
     def set_setting(self, key: str, value: Any) -> None:
         """Set a specific configuration setting."""
         config = self.load_config()
-        if not hasattr(config, key):
+        if key not in AppConfig.model_fields:
             raise ValueError(f"Unknown configuration key: {key}")
 
-        # Type conversion for Path fields
-        if key in ["config_file", "backup_dir", "default_key"] and value:
-            value = Path(value).expanduser()
+        if key in PATH_KEYS:
+            value = Path(value).expanduser() if value else None
         elif key == "auto_backup":
-            value = bool(value)
+            value = parse_bool(value)
+        elif key == "max_backups":
+            try:
+                value = int(value)
+            except (TypeError, ValueError):
+                raise ValueError(f"max_backups must be an integer, got '{value}'")
+            if value < 0:
+                raise ValueError("max_backups cannot be negative (0 = unlimited)")
 
-        setattr(config, key, value)
-        self.save_config(config)
+        self.save_config(AppConfig(**{**config.model_dump(), key: value}))
