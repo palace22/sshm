@@ -25,7 +25,7 @@ _FONT: Dict[str, List[str]] = {
 _HALF_BLOCKS = {("#", "#"): "█", ("#", "."): "▀", (".", "#"): "▄", (".", "."): " "}
 # "left": each row starts one column further right, so the word leans back.
 # "right": classic italic.
-LEAN = "left"
+LEAN = "right"
 
 _ASCII_LOGO = [r" ___ ___| |_  _ __", r"(_-<(_-<| ' \| '  \ ", r"/__//__/|_||_|_|_|_|"]
 _FROM, _TO = Color.parse("#5fd7ff"), Color.parse("#af87ff")  # cyan -> violet

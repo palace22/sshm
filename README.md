@@ -7,9 +7,9 @@ terminal.
 [![Tests](https://img.shields.io/github/actions/workflow/status/palace22/sshm/tests.yml)](https://github.com/palace22/sshm/actions)
 
 ```
-█▀▀▀ █▀▀▀ █    ▄▄▄▄▄
+  █▀▀▀ █▀▀▀ █    ▄▄▄▄▄
  ▀▀▀█ ▀▀▀█ █▀▀█ █ █ █
-  ▀▀▀▀ ▀▀▀▀ ▀  ▀ ▀ ▀ ▀
+▀▀▀▀ ▀▀▀▀ ▀  ▀ ▀ ▀ ▀
  ssh config manager :: v0.2.0 :: 53 hosts
 
 > @prod db_
